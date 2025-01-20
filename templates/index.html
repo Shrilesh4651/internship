@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Sensor Data Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #1e1e2f;
+            color: #ffffff;
+        }
+        header {
+            background-color: #29293d;
+            padding: 20px;
+            text-align: center;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 24px;
+            color: #ffffff;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 3fr;
+            grid-gap: 20px;
+            padding: 20px;
+        }
+        .sidebar {
+            background-color: #29293d;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .sidebar label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .sidebar select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: none;
+            border-radius: 4px;
+            background-color: #3e3e5e;
+            color: #ffffff;
+        }
+        .content {
+            background-color: #29293d;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .chart-container {
+            height: 500px;
+        }
+        .hidden {
+            display: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #555;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #444;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>ASHIDA Dynamic Sensor Data Dashboard</h1>
+    </header>
+    <div class="container">
+        <div class="sidebar">
+            <label for="building-id">Select Building:</label>
+            <select id="building-id" onchange="updateData()"></select>
+
+            <label for="sensor-type">Select Sensor Type:</label>
+            <select id="sensor-type" onchange="updateData()"></select>
+
+            <label for="timeline">Select Timeline:</label>
+            <select id="timeline" onchange="updateData()">
+                <option value="raw">Raw Data</option>
+                <option value="hourly">Hourly</option>
+                <option value="daily">Daily</option>
+            </select>
+
+            <label for="chart-type">Select Chart Type:</label>
+            <select id="chart-type" onchange="updateData()">
+                <option value="line">Line Chart</option>
+                <option value="bar">Bar Chart</option>
+                <option value="scatter">Scatter Plot</option>
+                <option value="histogram">Histogram</option>
+                <option value="box">Box Plot</option>
+                <option value="pie">Pie Chart</option>
+            </select>
+        </div>
+        <div class="content">
+            <div id="chart" class="chart-container"></div>
+            <div id="pie-chart" class="chart-container hidden"></div> <!-- Pie Chart container -->
+            
+            <table id="data-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Sensor Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Data will be populated dynamically here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function populateDropdowns() {
+            const buildingsResponse = await fetch('/buildings');
+            const buildings = await buildingsResponse.json();
+            const buildingSelect = document.getElementById('building-id');
+            buildings.forEach(building => {
+                let option = document.createElement('option');
+                option.value = building;
+                option.textContent = `Building ${building}`;
+                buildingSelect.appendChild(option);
+            });
+
+            const sensorTypesResponse = await fetch('/sensor-types');
+            const sensorTypes = await sensorTypesResponse.json();
+            const sensorTypeSelect = document.getElementById('sensor-type');
+            sensorTypes.forEach(type => {
+                let option = document.createElement('option');
+                option.value = type;
+                option.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+                sensorTypeSelect.appendChild(option);
+            });
+
+            updateData();  // Initialize with the first set of data
+        }
+
+        async function updateData() {
+            const buildingId = document.getElementById('building-id').value;
+            const sensorType = document.getElementById('sensor-type').value;
+            const timeline = document.getElementById('timeline').value;
+            const chartType = document.getElementById('chart-type').value;
+
+            const chartDiv = document.getElementById('chart');
+            const pieChartDiv = document.getElementById('pie-chart');
+
+            // Reset visibility
+            chartDiv.classList.remove('hidden');
+            pieChartDiv.classList.add('hidden');
+
+            // Fetch data
+            const dataResponse = await fetch(`/data/${buildingId}/${sensorType}/${timeline}`);
+            const data = await dataResponse.json();
+
+            updateTable(data);
+
+            // Generate the selected chart
+            if (chartType === 'pie') {
+                const distributionResponse = await fetch(`/sensor-distribution?building_id=${buildingId}`);
+                const distribution = await distributionResponse.json();
+                generatePieChart(distribution);
+                chartDiv.classList.add('hidden'); // Hide the main chart for pie
+                pieChartDiv.classList.remove('hidden'); // Show pie chart
+            } else {
+                generateChart(data, chartType);
+            }
+        }
+
+        function updateTable(data) {
+            const tableBody = document.getElementById('data-table').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = '';
+
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                const timestampCell = document.createElement('td');
+                const valueCell = document.createElement('td');
+
+                timestampCell.textContent = item.timestamp;
+                valueCell.textContent = item.value;
+
+                row.appendChild(timestampCell);
+                row.appendChild(valueCell);
+                tableBody.appendChild(row);
+            });
+        }
+
+        function generateChart(data, chartType) {
+            const timestamps = data.map(item => item.timestamp);
+            const values = data.map(item => item.value);
+
+            const layout = {
+                title: 'Sensor Data Chart',
+                xaxis: { title: 'Timestamp' },
+                yaxis: { title: 'Sensor Value' }
+            };
+
+            if (chartType === 'line') {
+                Plotly.newPlot('chart', [{ x: timestamps, y: values, type: 'scatter', mode: 'lines' }], layout);
+            } else if (chartType === 'bar') {
+                Plotly.newPlot('chart', [{ x: timestamps, y: values, type: 'bar' }], layout);
+            } else if (chartType === 'scatter') {
+                Plotly.newPlot('chart', [{ x: timestamps, y: values, mode: 'markers', type: 'scatter' }], layout);
+            } else if (chartType === 'histogram') {
+                Plotly.newPlot('chart', [{ x: values, type: 'histogram' }], layout);
+            } else if (chartType === 'box') {
+                Plotly.newPlot('chart', [{ y: values, type: 'box' }], layout);
+            }
+        }
+
+        function generatePieChart(distribution) {
+            const labels = distribution.map(item => item.sensor_type);
+            const values = distribution.map(item => item.count);
+
+            const pieLayout = {
+                title: 'Sensor Type Distribution',
+                height: 400,
+                width: 500
+            };
+
+            Plotly.newPlot('pie-chart', [{ labels, values, type: 'pie' }], pieLayout);
+        }
+
+        populateDropdowns();
+    </script>
+</body>
+</html>
