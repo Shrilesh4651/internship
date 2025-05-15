@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tabular Sensor Data View</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    /* Basic styles */
+    body {
+      margin: 0;
+      font-family: 'Roboto', sans-serif;
+      background-color: #1e1e2f;
+      color: #ffffff;
+    }
+    header {
+      background-color: #29293d;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 26px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      color: #ffffff;
+    }
+    .container {
+      padding: 20px;
+    }
+    .sidebar {
+      background-color: #29293d;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+    .sidebar label {
+      display: block;
+      margin-bottom: 10px;
+      font-weight: bold;
+      color: #a1a1a1;
+    }
+    .sidebar select {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: none;
+      border-radius: 4px;
+      background-color: #3e3e5e;
+      color: #ffffff;
+      font-size: 14px;
+    }
+    .table-container {
+      background-color: #29293d;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    table, th, td {
+      border: 1px solid #444;
+    }
+    th, td {
+      padding: 12px;
+      text-align: center;
+    }
+    th {
+      background-color: #3e3e5e;
+      color: #fff;
+    }
+    td {
+      color: #a1a1a1;
+    }
+    td .status-on {
+      color: white;
+      background-color: #2e6a2f;
+      padding: 5px;
+      border-radius: 5px;
+    }
+    td .status-off {
+      color: white;
+      background-color: #6a2e2f;
+      padding: 5px;
+      border-radius: 5px;
+    }
+    .pagination {
+      margin-top: 15px;
+      text-align: center;
+    }
+    .pagination button {
+      padding: 8px 16px;
+      margin: 0 5px;
+      background-color: #3e3e5e;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .pagination button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    footer {
+      text-align: center;
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #29293d;
+      border-top: 2px solid #444;
+      color: #aaa;
+    }
+    footer a {
+      color: #4caf50;
+      text-decoration: none;
+    }
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Tabular Sensor Data View</h1>
+  </header>
+  <div class="container">
+    <!-- Sidebar for Filters -->
+    <div class="sidebar">
+      <label for="building-id">Select Building:</label>
+      <select id="building-id" onchange="resetPaginationAndUpdate()">
+        <option value="all">All Buildings (Average)</option>
+      </select>
+
+      <label for="floor-id">Select Floor:</label>
+      <select id="floor-id" onchange="resetPaginationAndUpdate()">
+        <option value="all">All Floors (Average)</option>
+      </select>
+
+      <label for="sensor-type">Select Sensor Type:</label>
+      <select id="sensor-type" onchange="resetPaginationAndUpdate()">
+        <!-- Sensor types will be populated dynamically -->
+      </select>
+
+      <label for="timeline">Select Timeline:</label>
+      <select id="timeline" onchange="resetPaginationAndUpdate()">
+          <option value="raw">Raw Data</option>
+          <option value="hourly">Hourly</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+      </select>
+      
+      <label for="aggregation">Select Aggregation:</label>
+      <select id="aggregation" onchange="resetPaginationAndUpdate()">
+          <option value="raw">Raw</option>
+          <option value="min">Min</option>
+          <option value="max">Max</option>
+          <option value="avg">Average</option>
+      </select>
+    </div>
+
+    <!-- Tabular Data -->
+    <div class="table-container">
+      <table id="data-table">
+        <thead>
+          <tr>
+            <th>Building ID</th>
+            <th>Floor ID</th>
+            <th>Timestamp</th>
+            <th>Sensor Type</th>
+            <th>Value</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Data will be populated here dynamically -->
+        </tbody>
+      </table>
+
+      <!-- Pagination Controls -->
+      <div class="pagination">
+        <button id="prevPage" onclick="prevPage()">Previous</button>
+        <span id="pageIndicator">Page 1</span>
+        <button id="nextPage" onclick="nextPage()">Next</button>
+      </div>
+    </div>
+  </div>
+  <footer>
+    <p>&copy; 2025 <a href="#">ASHIDA Solutions</a></p>
+  </footer>
+
+  <script>
+    // Global pagination variables
+    let currentPage = 1;
+    const pageSize = 30; // Number of records per page
+
+    // Fetch available buildings
+    fetch('/buildings')
+      .then(response => response.json())
+      .then(buildings => {
+        const buildingSelect = document.getElementById('building-id');
+        buildings.forEach(building => {
+          const option = document.createElement('option');
+          option.value = building;
+          option.textContent = building;
+          buildingSelect.appendChild(option);
+        });
+        updateFloorsAndData(); // Initial data fetch
+      });
+
+    // Fetch sensor types
+    fetch('/sensor-types')
+      .then(response => response.json())
+      .then(sensorTypes => {
+        const sensorTypeSelect = document.getElementById('sensor-type');
+        sensorTypes.forEach(sensorType => {
+          const option = document.createElement('option');
+          option.value = sensorType;
+          option.textContent = sensorType;
+          sensorTypeSelect.appendChild(option);
+        });
+        updateData(); // Optionally, trigger an initial data update
+      });
+
+    // Fetch floors for selected building
+    function updateFloorsAndData() {
+      const buildingId = document.getElementById('building-id').value;
+      fetch(`/floors/${buildingId}`)
+        .then(response => response.json())
+        .then(floors => {
+          const floorSelect = document.getElementById('floor-id');
+          floorSelect.innerHTML = '';
+          const option = document.createElement('option');
+          option.value = 'all';
+          option.textContent = 'All Floors';
+          floorSelect.appendChild(option);
+          floors.forEach(floor => {
+            const option = document.createElement('option');
+            option.value = floor;
+            option.textContent = floor;
+            floorSelect.appendChild(option);
+          });
+          updateData(); // Trigger data update with new filters
+        });
+    }
+
+    // Update data table based on current filters
+    function updateData() {
+      const buildingId = document.getElementById('building-id').value;
+      const floorId = document.getElementById('floor-id').value;
+      const sensorType = document.getElementById('sensor-type').value;
+      const timeline = document.getElementById('timeline').value;
+      const aggregation = document.getElementById('aggregation').value;
+
+      const params = new URLSearchParams({
+        building_id: buildingId,
+        floor_id: floorId,
+        sensor_type: sensorType,
+        timeline: timeline,
+        aggregation: aggregation,
+        limit: pageSize,
+        offset: (currentPage - 1) * pageSize
+      });
+
+      fetch(`/tabular-data?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+          const tbody = document.getElementById('data-table').getElementsByTagName('tbody')[0];
+          tbody.innerHTML = '';
+          data.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${row.building_id}</td>
+              <td>${row.floor_number}</td>
+              <td>${row.timestamp}</td>
+              <td>${row.sensor_type}</td>
+              <td>${row.value}</td>
+              <td>
+                <span class="status-${row.status.toLowerCase()}">${row.status}</span>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+
+          // Update pagination buttons
+          updatePagination();
+        });
+    }
+
+    // Update pagination buttons based on current page
+    function updatePagination() {
+      document.getElementById('pageIndicator').textContent = `Page ${currentPage}`;
+      document.getElementById('prevPage').disabled = currentPage === 1;
+      document.getElementById('nextPage').disabled = false; // Disable based on total pages, if available
+    }
+
+    // Pagination: Go to previous page
+    function prevPage() {
+      if (currentPage > 1) {
+        currentPage--;
+        updateData();
+      }
+    }
+
+    // Pagination: Go to next page
+    function nextPage() {
+      currentPage++;
+      updateData();
+    }
+
+    // Reset pagination when filters change
+    function resetPaginationAndUpdate() {
+      currentPage = 1;
+      updateData();
+    }
+  </script>
+</body>
+</html>

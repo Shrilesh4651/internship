@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graphical View</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .chart-container {
+            width: 80%;
+            margin: auto;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center">Sensor Data Graphical View</h1>
+        <div class="form-group">
+            <label for="buildingSelect">Select Building:</label>
+            <select class="form-control" id="buildingSelect">
+                <option value="all">All</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="floorSelect">Select Floor:</label>
+            <select class="form-control" id="floorSelect">
+                <option value="all">All</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="sensorTypeSelect">Select Sensor Type:</label>
+            <select class="form-control" id="sensorTypeSelect">
+                <option value="temperature">Temperature</option>
+                <option value="humidity">Humidity</option>
+                <option value="pressure">Pressure</option>
+                <option value="digital">Digital</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="timelineSelect">Select Timeline:</label>
+            <select class="form-control" id="timelineSelect">
+                <option value="hourly">Hourly</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="aggregationSelect">Select Aggregation:</label>
+            <select class="form-control" id="aggregationSelect">
+                <option value="avg">Average</option>
+                <option value="min">Minimum</option>
+                <option value="max">Maximum</option>
+            </select>
+        </div>
+        <button class="btn btn-primary" onclick="fetchDataAndRenderChart()">Generate Graph</button>
+        <div class="chart-container">
+            <canvas id="sensorChart"></canvas>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script>
+        let sensorChart;
+
+        $(document).ready(function() {
+            fetchBuildings();
+            fetchSensorTypes();
+        });
+
+        function fetchBuildings() {
+            $.get('/buildings', function(data) {
+                console.log("Buildings data:", data); // Debugging
+                if (data && data.length > 0) {
+                    let options = '<option value="all">All</option>';
+                    data.forEach(building => {
+                        options += `<option value="${building}">${building}</option>`;
+                    });
+                    $('#buildingSelect').html(options);
+                } else {
+                    console.error("No buildings found or invalid response:", data);
+                }
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                console.error("Failed to fetch buildings:", textStatus, errorThrown);
+            });
+        }
+
+        function fetchFloors() {
+            const buildingId = $('#buildingSelect').val();
+            $.get(`/floors/${buildingId}`, function(data) {
+                console.log("Floors data:", data); // Debugging
+                if (data && data.length > 0) {
+                    let options = '<option value="all">All</option>';
+                    data.forEach(floor => {
+                        options += `<option value="${floor}">${floor}</option>`;
+                    });
+                    $('#floorSelect').html(options);
+                } else {
+                    console.error("No floors found or invalid response:", data);
+                }
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                console.error("Failed to fetch floors:", textStatus, errorThrown);
+            });
+        }
+
+        function fetchSensorTypes() {
+            $.get('/sensor-types', function(data) {
+                console.log("Sensor types data:", data); // Debugging
+                if (data && data.length > 0) {
+                    let options = '';
+                    data.forEach(type => {
+                        options += `<option value="${type}">${type}</option>`;
+                    });
+                    $('#sensorTypeSelect').html(options);
+                } else {
+                    console.error("No sensor types found or invalid response:", data);
+                }
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                console.error("Failed to fetch sensor types:", textStatus, errorThrown);
+            });
+        }
+
+        function fetchDataAndRenderChart() {
+            const buildingId = $('#buildingSelect').val();
+            const floor = $('#floorSelect').val();
+            const sensorType = $('#sensorTypeSelect').val();
+            const timeline = $('#timelineSelect').val();
+            const aggregation = $('#aggregationSelect').val();
+
+            $.get(`/data/${buildingId}/${floor}/${sensorType}/${timeline}/${aggregation}`, function(data) {
+                console.log("Sensor data:", data); // Debugging
+                if (data && data.length > 0) {
+                    const labels = data.map(d => d.timestamp);
+                    const values = data.map(d => d.value);
+
+                    if (sensorChart) {
+                        sensorChart.destroy();
+                    }
+
+                    const ctx = document.getElementById('sensorChart').getContext('2d');
+                    sensorChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: `${sensorType} (${data[0]?.unit || ''})`,
+                                data: values,
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                borderWidth: 1,
+                                fill: false
+                            }]
+                        },
+                        options: {
+                            scales: {
+                                x: {
+                                    type: 'time',
+                                    time: {
+                                        unit: timeline
+                                    }
+                                },
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    console.error("No data found or invalid response:", data);
+                }
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                console.error("Failed to fetch sensor data:", textStatus, errorThrown);
+            });
+        }
+
+        // Attach event listeners
+        $('#buildingSelect').change(fetchFloors);
+    </script>
+</body>
+</html>
