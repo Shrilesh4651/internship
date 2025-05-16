@@ -1,55 +1,90 @@
 import sqlite3
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
-import threading
 
-# Initialize SQLite Database
-def init_db():
-    conn = sqlite3.connect('sensor_data.db')
-    cursor = conn.cursor()
-    cursor.execute(''' 
-        CREATE TABLE IF NOT EXISTS sensor_data ( 
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            building_id INTEGER, 
-            sensor_id INTEGER, 
-            sensor_type TEXT, 
-            value REAL, 
-            timestamp TEXT 
-        ) 
-    ''')
-    conn.commit()
-    conn.close()
+def create_database():
+    """Create the database and the sensor_data table."""
+    with sqlite3.connect('sensor_data.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute(''' 
+            CREATE TABLE IF NOT EXISTS sensor_data (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                building_id TEXT,
+                floor_number INTEGER,
+                sensor_type TEXT,
+                timestamp TEXT,
+                value REAL,
+                status TEXT,
+                fan_status TEXT,
+                rotor_status TEXT,
+                pipe_status TEXT,
+                fan_id TEXT
+            );
+        ''')
+        conn.commit()
 
-# Function to insert random sensor data into the database
-def insert_random_data():
-    conn = sqlite3.connect('sensor_data.db')
-    cursor = conn.cursor()
+def generate_sample_data():
+    """Generate sample sensor data every second."""
+    # Sample buildings, floors, and sensor types
+    buildings = ['Building 1', 'Building 2', 'Building 3']
+    floors = [1, 2, 3, 4]
+    sensor_types = ['temperature', 'humidity', 'pressure', 'digital']
 
-    building_id = random.randint(1, 10)  # Dynamic for up to 10 buildings
-    sensor_id = random.randint(1, 5)  # Sensor IDs from 1 to 5
-    sensor_type = random.choice(["temperature", "humidity", "pressure"])
-    value = random.uniform(20, 35) if sensor_type == "temperature" else random.uniform(30, 60)
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # Open the connection once and use it throughout
+    with sqlite3.connect('sensor_data.db') as conn:
+        cursor = conn.cursor()
+        while True:
+            # Get the current timestamp (current time for each entry)
+            current_timestamp = datetime.now()
 
-    cursor.execute(''' 
-        INSERT INTO sensor_data (building_id, sensor_id, sensor_type, value, timestamp)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (building_id, sensor_id, sensor_type, value, timestamp))
+            # For each cycle, generate a sample row for each building, floor, and sensor type
+            for building in buildings:
+                for floor in floors:
+                    for sensor_type in sensor_types:
+                        # Generate sample value based on sensor type
+                        if sensor_type == 'temperature':
+                            value = random.uniform(15.0, 30.0)  # °C
+                        elif sensor_type == 'humidity':
+                            value = random.uniform(40.0, 60.0)  # %
+                        elif sensor_type == 'pressure':
+                            value = random.uniform(990.0, 1020.0)  # hPa
+                        elif sensor_type == 'digital':
+                            value = random.choice([0, 1])  # Digital flag as numeric value
+                        else:
+                            value = None
 
-    conn.commit()
-    conn.close()
+                        # For digital sensors, set status and fan_id; for non-digital, leave as None
+                        status = random.choice(['ON', 'OFF']) if sensor_type == 'digital' else None
+                        fan_status = random.choice(['ON', 'OFF'])
+                        rotor_status = random.choice(['ON', 'OFF'])
+                        pipe_status = random.choice(['ON', 'OFF'])
+                        fan_id = random.choice([None, 'Fan A', 'Fan B', 'Fan C']) if sensor_type == 'digital' else None
 
-# Background thread to continuously update the database
-def continuous_update():
-    while True:
-        insert_random_data()
-        time.sleep(5)  # Add new data every 5 seconds
+                        # Insert the sample row into sensor_data table
+                        cursor.execute('''
+                            INSERT INTO sensor_data 
+                            (building_id, floor_number, sensor_type, timestamp, value, status, fan_status, rotor_status, pipe_status, fan_id)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (
+                            building,
+                            floor,
+                            sensor_type,
+                            current_timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                            value,
+                            status,
+                            fan_status,
+                            rotor_status,
+                            pipe_status,
+                            fan_id
+                        ))
+            # Commit the data after each cycle
+            conn.commit()
+
+            # Sleep for 1 second before generating the next set of data
+            time.sleep(1)
 
 if __name__ == '__main__':
-    init_db()
-    thread = threading.Thread(target=continuous_update, daemon=True)
-    thread.start()
-    print("Data generation started. Press Ctrl+C to stop.")
-    while True:
-        time.sleep(1)
+    create_database()        # Create the database and table
+    generate_sample_data()   # Continuously generate and insert sample data every second
+    print("Database and sample data generation started...")
