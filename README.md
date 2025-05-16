@@ -35,21 +35,41 @@ This project is an **HVAC (Heating, Ventilation, and Air Conditioning) Sensor Da
 
 ```
 HVAC-Dashboard/
-├── app/  
-│   ├── static/  
-│   │   ├── styles.css  
-│   │   └── script.js  
-│   ├── templates/  
-│   │   └── index.html  
-│   ├── data/  
-│   ├── __init__.py  
-│   ├── views.py  
-│   └── models.py  
-├── config/  
-├── tests/  
-├── README.md  
-├── requirements.txt  
-└── run.py  
+├── bin/                      # Binary files (if any)
+├── build/                    # Compiled files and executables
+│   └── app/
+├── dist/                     # Distribution files for deployment
+├── project-internship/       # Additional project files (if applicable)
+├── src/                      # Source code folder
+│   ├── app.py                # Main application file
+│   ├── application.py        # Core application logic
+│   ├── data_generator.py     # Script to generate sensor data
+│   ├── gui.py                # GUI implementation (if applicable)
+│   ├── main.py               # Entry point script
+│   ├── run_app.bat           # Batch file to start the app (Windows)
+│   └── main.spec             # Spec file for PyInstaller
+├── templates/                # HTML templates for Flask
+│   ├── index.html            # Main dashboard page
+│   ├── export.html           # Export data page
+│   ├── graphical.html        # Graphical data visualization page
+│   └── tabular.html          # Tabular data visualization page
+├── venv/                     # Virtual environment for Python
+├── .vscode/                  # VS Code configuration files
+├── .classpath                # Eclipse/IDE specific files
+├── .project                  # Eclipse/IDE specific files
+├── README.md                 # Project documentation
+├── Untitled-1.ts             # TypeScript file (if needed)
+├── hvac.db                   # Primary database file
+├── simulation_data.db        # Simulation data database
+├── export.html               # Export page (duplicate or separate from templates)
+├── graphical.html            # Graphical visualization (duplicate or separate)
+├── sensor_data.xlsx          # Excel data file
+├── sensor_data.db            # Sensor data database
+├── simulation_data.pdf       # PDF export of simulation data
+├── app.spec                  # Spec file for PyInstaller
+├── relay-mimic-simulator/    # Simulator files (if needed)
+└── static/                   # Static files (CSS, JS, Images)
+
 ```
 
 ---
