@@ -147,44 +147,45 @@
   <header>
     <h1>Dynamic Sensor Data Dashboard</h1>
   </header>
+
   <div class="container">
     <!-- Sidebar for Filters -->
     <div class="sidebar">
       <label for="building-id">Select Building:</label>
-      <select id="building-id" onchange="updateFloorsAndData()">
-        <option value="all">All Buildings (Average)</option>
+      <select id="building-id" onchange="onBuildingChange()">
+        <option value="">All Buildings (Average)</option>
       </select>
 
       <label for="floor-id">Select Floor:</label>
       <select id="floor-id" onchange="updateData()">
-        <option value="all">All Floors (Average)</option>
+        <option value="">All Floors (Average)</option>
       </select>
 
       <label for="sensor-type">Select Sensor Type:</label>
       <select id="sensor-type" onchange="updateData()">
-        <!-- Sensor types will be populated dynamically -->
+        <option value="">-- pick a sensor --</option>
       </select>
 
       <label for="timeline">Select Timeline:</label>
       <select id="timeline" onchange="updateData()">
-          <option value="live">Live</option>
-          <option value="5min">5 minutes</option>
-          <option value="10min">10 minutes</option>
-          <option value="15min">15 minutes</option>
-          <option value="30min">30 minutes</option>
-          <option value="hourly">Hourly</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-          <option value="yearly">Yearly</option>
+        <option value="live">Live</option>
+        <option value="5min">5 min</option>
+        <option value="10min">10 min</option>
+        <option value="15min">15 min</option>
+        <option value="30min">30 min</option>
+        <option value="hourly">Hourly</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+        <option value="yearly">Yearly</option>
       </select>
-      
+
       <label for="aggregation">Select Aggregation:</label>
       <select id="aggregation" onchange="updateData()">
-        <option value="raw">Live</option>
+        <option value="raw">Raw</option>
         <option value="min">Min</option>
         <option value="max">Max</option>
-        <option value="avg">Average</option>
+        <option value="avg" selected>Avg</option>
       </select>
 
       <label for="chart-type">Select Chart Type:</label>
@@ -195,294 +196,175 @@
         <option value="scatter">Scatter Plot</option>
         <option value="box">Box Plot</option>
       </select>
+
+      <div style="margin-top:1em;">
+        <a href="/export"><button class="btn-export">Go to Export Page</button></a>
+      </div>
     </div>
-    <div>
-        <a href="/export">
-            <button style="background-color: #28a745;">Go to Export Page</button>
-       </a>
-    </div>
+
     <!-- Main Content -->
     <div class="content">
-      <!-- Chart or Fan Cards -->
-      <div id="chart" class="chart-container hidden"></div>
+      <div id="chart" class="chart-container"></div>
       <div id="fan-cards" class="fan-card-container hidden"></div>
     </div>
   </div>
+
   <footer>
     <p>&copy; 2025 <a href="#">ASHIDA Solutions</a></p>
   </footer>
 
   <script>
-    // Helper function to calculate the week of the year
-    function getWeekOfYear(date) {
-      const startOfYear = new Date(date.getFullYear(), 0, 1);
-      const pastDaysOfYear = (date - startOfYear) / 86400000;
-      return Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
+    // Helper: week of year
+    function getWeekOfYear(d) {
+      const onejan = new Date(d.getFullYear(),0,1);
+      return Math.ceil(((d - onejan) / 86400000 + onejan.getDay()+1)/7);
     }
 
-    // Fetch available buildings
-    fetch('/buildings')
-      .then(response => response.json())
-      .then(buildings => {
-        const buildingSelect = document.getElementById('building-id');
-        buildings.forEach(building => {
-          const option = document.createElement('option');
-          option.value = building;
-          option.textContent = building;
-          buildingSelect.appendChild(option);
-        });
-        updateFloorsAndData(); // Initial data fetch
-      });
-
-    // Fetch available sensor types
-    fetch('/sensor-types')
-      .then(response => response.json())
-      .then(sensorTypes => {
-        const sensorTypeSelect = document.getElementById('sensor-type');
-        sensorTypes.forEach(sensorType => {
-          const option = document.createElement('option');
-          option.value = sensorType;
-          option.textContent = sensorType;
-          sensorTypeSelect.appendChild(option);
-        });
-        updateData(); // Optionally, trigger an initial data update
-      });
-
-    // Fetch floors for selected building
-    function updateFloorsAndData() {
-      const buildingId = document.getElementById('building-id').value;
-      fetch(`/floors/${buildingId}`)
-        .then(response => response.json())
-        .then(floors => {
-          const floorSelect = document.getElementById('floor-id');
-          floorSelect.innerHTML = '<option value="all">All Floors (Average)</option>';
-          floors.forEach(floor => {
-            const option = document.createElement('option');
-            option.value = floor;
-            option.textContent = `Floor ${floor}`;
-            floorSelect.appendChild(option);
-          });
-          updateData(); // Fetch data for selected building and floor
-        });
+    // Round to nearest N minutes and return timestamp string
+    function roundToNearestMinutes(date, minutes) {
+      const ms = 1000 * 60 * minutes;
+      const rounded = new Date(Math.floor(date.getTime()/ms)*ms);
+      return rounded.toISOString();
     }
 
-    // Fetch and display sensor data based on selected filters
-    function updateData() {
-      const buildingId = document.getElementById('building-id').value;
-      const floorId = document.getElementById('floor-id').value;
-      const sensorType = document.getElementById('sensor-type').value;
-      const timeline = document.getElementById('timeline').value;
-      const aggregation = document.getElementById('aggregation').value;
-      const chartType = document.getElementById('chart-type').value;
-
-      fetch(`/data/${buildingId}/${floorId}/${sensorType}/${timeline}/${aggregation}`)
-        .then(response => response.json())
-        .then(data => {
-          if (sensorType === 'digital') {
-            generateFanCards(data);
-          } else {
-            generateChart(data, sensorType, chartType, timeline);
-          }
-        });
-    }
-
-    // Generate chart for non-digital sensors
-    function generateChart(data, sensorType, chartType, timeline) {
-      const chartContainer = document.getElementById('chart');
-      chartContainer.innerHTML = '';  // Clear existing chart
-
-      // Sort and group data by timeline
-      data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      const groupedData = groupDataByTimeline(data, timeline);
-      console.log('Grouped Data:', groupedData); // Debug log
-
-      const timestamps = groupedData.timestamps;
-      const values = groupedData.values;
-      const unit = data.length ? data[0].unit : '';
-
-      let trace = {};
-      switch (chartType) {
-        case 'line':
-          trace = {
-            x: timestamps,
-            y: values,
-            type: 'scatter',
-            mode: 'lines+markers',
-            name: sensorType,
-          };
-          break;
-        case 'bar':
-          trace = {
-            x: timestamps,
-            y: values,
-            type: 'bar',
-            name: sensorType,
-          };
-          break;
-        case 'pie':
-          trace = {
-            labels: timestamps,
-            values: values,
-            type: 'pie',
-            name: sensorType,
-          };
-          break;
-        case 'scatter':
-          trace = {
-            x: timestamps,
-            y: values,
-            type: 'scatter',
-            mode: 'markers',
-            name: sensorType,
-            marker: {
-              size: 10,
-              color: '#4CAF50',
-            },
-          };
-          break;
-        case 'box':
-          trace = {
-            y: values,
-            type: 'box',
-            name: sensorType,
-          };
-          break;
+    // Group + aggregate
+    function groupAndAggregate(data, timeline, agg) {
+      if (timeline === 'live' && agg === 'raw') {
+        return {
+          timestamps: data.map(d=>d.timestamp),
+          values: data.map(d=>d.value)
+        };
       }
+      const groups = {};
+      data.forEach(d => {
+        const dt = new Date(d.timestamp);
+        let key;
+        switch(timeline) {
+          case '5min': key = roundToNearestMinutes(dt,5); break;
+          case '10min': key = roundToNearestMinutes(dt,10); break;
+          case '15min': key = roundToNearestMinutes(dt,15); break;
+          case '30min': key = roundToNearestMinutes(dt,30); break;
+          case 'hourly': key = dt.toISOString().slice(0,13)+':00:00'; break;
+          case 'daily': key = dt.toISOString().slice(0,10); break;
+          case 'weekly': key = dt.getFullYear()+'-W'+getWeekOfYear(dt); break;
+          case 'monthly': key = dt.toISOString().slice(0,7); break;
+          case 'yearly': key = dt.getFullYear().toString(); break;
+          default: key = d.timestamp;
+        }
+        groups[key] = groups[key]||[];
+        groups[key].push(d.value);
+      });
+      const timestamps = [], values = [];
+      Object.entries(groups).sort().forEach(([period, arr])=>{
+        timestamps.push(period);
+        if (agg==='min') values.push(Math.min(...arr));
+        else if (agg==='max') values.push(Math.max(...arr));
+        else values.push(arr.reduce((a,b)=>a+b,0)/arr.length);
+      });
+      return { timestamps, values };
+    }
 
-      const layout = {
-        title: `${sensorType.charAt(0).toUpperCase() + sensorType.slice(1)} over Time`,
-        xaxis: {
-          title: 'Time',
-          type: 'category',
-        },
-        yaxis: {
-          title: `${sensorType.charAt(0).toUpperCase() + sensorType.slice(1)} (${unit})`,
-        },
+    // Detect digital sensor by name
+    function isDigitalSensor(name) {
+      return name.toLowerCase().includes('status') || name.toLowerCase().includes('digital');
+    }
+
+    // Draw Plotly chart
+    function renderChart(ts, vals, sensor, chartType) {
+      const trace = {
+        x: ts, y: vals,
+        type: chartType==='bar'?'bar':'scatter',
+        mode: chartType==='line'?'lines+markers':undefined,
+        name: sensor
       };
-
-      Plotly.newPlot(chartContainer, [trace], layout);
-      chartContainer.classList.remove('hidden');
+      const layout = {
+        title: sensor + ' over Time',
+        xaxis: { title: 'Timestamp' },
+        yaxis: { title: sensor }
+      };
+      Plotly.newPlot('chart',[trace],layout,{responsive:true});
+      document.getElementById('chart').classList.remove('hidden');
       document.getElementById('fan-cards').classList.add('hidden');
     }
 
-    // Group data based on the selected timeline
-    function groupDataByTimeline(data, timeline) {
-      const grouped = {
-        timestamps: [],
-        values: [],
-      };
-
-      let currentPeriod = null;
-      let tempValues = [];
-
+    // Render fan cards for digital sensors
+    function renderFanCards(data) {
+      const container = document.getElementById('fan-cards');
+      container.innerHTML = '';
       data.forEach(item => {
-        const timestamp = new Date(item.timestamp);
-        let periodKey = '';
-
-        switch (timeline) {
-          case 'live':
-            // Use the raw timestamp as-is (no grouping)
-            periodKey = timestamp.toISOString();
-            break;
-          case '5min':
-            periodKey = roundToNearestMinutes(timestamp, 5);
-            break;
-          case '10min':
-            periodKey = roundToNearestMinutes(timestamp, 10);
-            break;
-          case '15min':
-            periodKey = roundToNearestMinutes(timestamp, 15);
-            break;
-          case '30min':
-            periodKey = roundToNearestMinutes(timestamp, 30);
-            break;
-          case 'hourly':
-            periodKey = `${timestamp.getFullYear()}-${timestamp.getMonth() + 1}-${timestamp.getDate()} ${timestamp.getHours()}:00`;
-            break;
-          case 'daily':
-            periodKey = `${timestamp.getFullYear()}-${timestamp.getMonth() + 1}-${timestamp.getDate()}`;
-            break;
-          case 'weekly':
-            periodKey = `${timestamp.getFullYear()}-W${getWeekOfYear(timestamp)}`;
-            break;
-          case 'monthly':
-            periodKey = `${timestamp.getFullYear()}-${timestamp.getMonth() + 1}`;
-            break;
-          case 'yearly':
-            periodKey = `${timestamp.getFullYear()}`;
-            break;
-          default:
-            periodKey = timestamp.toISOString();
-            break;
-        }
-
-        // If the periodKey changes, store the aggregated value for the previous group.
-        if (periodKey !== currentPeriod) {
-          if (tempValues.length > 0 && currentPeriod !== null) {
-            grouped.timestamps.push(currentPeriod);
-            const avg = tempValues.reduce((sum, v) => sum + v, 0) / tempValues.length;
-            grouped.values.push(avg);
-          }
-          currentPeriod = periodKey;
-          tempValues = [];
-        }
-        tempValues.push(item.value);
-      });
-
-      // Push the last group if available
-      if (tempValues.length > 0) {
-        grouped.timestamps.push(currentPeriod);
-        const avg = tempValues.reduce((sum, v) => sum + v, 0) / tempValues.length;
-        grouped.values.push(avg);   
-      }
-
-      return grouped;
-    }
-
-    // Rounds the date to the nearest specified minutes and returns a simple HH:MM format
-    function roundToNearestMinutes(date, minutes) {
-      const ms = 1000 * 60 * minutes;
-      const roundedDate = new Date(Math.floor(date.getTime() / ms) * ms);
-      return roundedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-
-    // Generate fan cards for digital sensors
-    function generateFanCards(data) {
-      const fanCardsContainer = document.getElementById('fan-cards');
-      fanCardsContainer.innerHTML = ''; // Clear existing fan cards
-
-      data.forEach(item => {
-        const fanCard = document.createElement('div');
-        fanCard.classList.add('fan-card');
-
-        // Convert database values (0/1) to "ON"/"OFF"
-        const fanStatus = item.fan_status === 1 ? 'ON' : 'OFF';
-        const rotorStatus = item.rotor_status === 1 ? 'ON' : 'OFF';
-        const pipeStatus = item.pipe_status === 1 ? 'ON' : 'OFF';
-
-        // Assign status classes dynamically
-        const fanStatusClass = fanStatus === 'ON' ? 'status-on' : 'status-off';
-        const rotorStatusClass = rotorStatus === 'ON' ? 'status-on' : 'status-off';
-        const pipeStatusClass = pipeStatus === 'ON' ? 'status-on' : 'status-off';
-
-        fanCard.innerHTML = `
-          <h3>Fan ID: ${item.fan_id} <br> Building: ${item.building_id} | Floor: ${item.floor_number}</h3>
-          <div class="fan-status ${fanStatusClass}">
-            Fan: ${fanStatus}
-          </div>
-          <div class="rotor-status ${rotorStatusClass}">
-            Rotor: ${rotorStatus}
-          </div>
-          <div class="pipe-status ${pipeStatusClass}">
-            Pipe: ${pipeStatus}
-          </div>
+        const card = document.createElement('div');
+        card.className = 'fan-card';
+        // assume item has keys like fan_status, rotor_status, pipe_status, building, floor
+        const onOff = v=> v===1?'ON':'OFF';
+        card.innerHTML = `
+          <h3>Building ${item.building} | Floor ${item.floor}</h3>
+          <p>Fan: ${onOff(item.fan_status)}</p>
+          <p>Rotor: ${onOff(item.rotor_status)}</p>
+          <p>Pipe: ${onOff(item.pipe_status)}</p>
         `;
-        fanCardsContainer.appendChild(fanCard);
+        container.appendChild(card);
       });
-
-      fanCardsContainer.classList.remove('hidden');
+      container.classList.remove('hidden');
       document.getElementById('chart').classList.add('hidden');
     }
+
+    // Main data fetch + render
+    async function updateData() {
+      const b = document.getElementById('building-id').value;
+      const f = document.getElementById('floor-id').value;
+      const sensor = document.getElementById('sensor-type').value;
+      const timeline = document.getElementById('timeline').value;
+      const agg = document.getElementById('aggregation').value;
+      const chartType = document.getElementById('chart-type').value;
+      if (!sensor) return;
+      const params = new URLSearchParams();
+      if (b && b!=='all') params.append('building', b);
+      if (f && f!=='all') params.append('floor', f);
+      const url = `/data/sensor/${sensor}?${params.toString()}`;
+      const data = await fetch(url).then(r=>r.json());
+
+      if (isDigitalSensor(sensor)) {
+        renderFanCards(data);
+      } else {
+        const { timestamps, values } = groupAndAggregate(data, timeline, agg);
+        renderChart(timestamps, values, sensor, chartType);
+      }
+    }
+
+    // Populate dropdowns
+    async function loadFilters() {
+      const [buildings, sensors] = await Promise.all([
+        fetch('/buildings').then(r=>r.json()),
+        fetch('/sensors').then(r=>r.json())
+      ]);
+      const bs = document.getElementById('building-id');
+      buildings.forEach(v=>{
+        bs.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`);
+      });
+      const ss = document.getElementById('sensor-type');
+      sensors.forEach(v=>{
+        ss.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`);
+      });
+      await loadFloors();  // initial floors
+      updateData();
+    }
+
+    async function loadFloors() {
+      const floors = await fetch('/floors').then(r=>r.json());
+      const fs = document.getElementById('floor-id');
+      fs.innerHTML = `<option value="all">All Floors (Average)</option>`;
+      floors.forEach(v=>{
+        fs.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`);
+      });
+    }
+
+    function onBuildingChange(){
+      // you could fetch `/floors?building=...` if backend supported that
+      loadFloors().then(updateData);
+    }
+
+    // Kickoff + auto‑refresh
+    loadFilters();
     setInterval(updateData, 10000);
   </script>
 </body>

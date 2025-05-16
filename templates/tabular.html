@@ -129,40 +129,41 @@
   <header>
     <h1>Tabular Sensor Data View</h1>
   </header>
+
   <div class="container">
     <!-- Sidebar for Filters -->
     <div class="sidebar">
       <label for="building-id">Select Building:</label>
-      <select id="building-id" onchange="resetPaginationAndUpdate()">
-        <option value="all">All Buildings (Average)</option>
+      <select id="building-id">
+        <option value="">All Buildings (Average)</option>
       </select>
 
       <label for="floor-id">Select Floor:</label>
-      <select id="floor-id" onchange="resetPaginationAndUpdate()">
-        <option value="all">All Floors (Average)</option>
+      <select id="floor-id" disabled>
+        <option value="">All Floors (Average)</option>
       </select>
 
       <label for="sensor-type">Select Sensor Type:</label>
-      <select id="sensor-type" onchange="resetPaginationAndUpdate()">
-        <!-- Sensor types will be populated dynamically -->
+      <select id="sensor-type">
+        <option value="">-- pick a sensor --</option>
       </select>
 
       <label for="timeline">Select Timeline:</label>
-      <select id="timeline" onchange="resetPaginationAndUpdate()">
-          <option value="raw">Raw Data</option>
-          <option value="hourly">Hourly</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-          <option value="yearly">Yearly</option>
+      <select id="timeline">
+        <option value="raw">Raw Data</option>
+        <option value="hourly">Hourly</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+        <option value="yearly">Yearly</option>
       </select>
-      
+
       <label for="aggregation">Select Aggregation:</label>
-      <select id="aggregation" onchange="resetPaginationAndUpdate()">
-          <option value="raw">Raw</option>
-          <option value="min">Min</option>
-          <option value="max">Max</option>
-          <option value="avg">Average</option>
+      <select id="aggregation">
+        <option value="raw">Raw</option>
+        <option value="min">Min</option>
+        <option value="max">Max</option>
+        <option value="avg" selected>Average</option>
       </select>
     </div>
 
@@ -171,155 +172,199 @@
       <table id="data-table">
         <thead>
           <tr>
-            <th>Building ID</th>
-            <th>Floor ID</th>
-            <th>Timestamp</th>
-            <th>Sensor Type</th>
+            <th>Building</th>
+            <th>Floor</th>
+            <th>Period</th>
+            <th>Sensor</th>
             <th>Value</th>
             <th>Status</th>
           </tr>
         </thead>
-        <tbody>
-          <!-- Data will be populated here dynamically -->
-        </tbody>
+        <tbody></tbody>
       </table>
 
       <!-- Pagination Controls -->
       <div class="pagination">
-        <button id="prevPage" onclick="prevPage()">Previous</button>
+        <button id="prevPage">Previous</button>
         <span id="pageIndicator">Page 1</span>
-        <button id="nextPage" onclick="nextPage()">Next</button>
+        <button id="nextPage">Next</button>
       </div>
     </div>
   </div>
+
   <footer>
     <p>&copy; 2025 <a href="#">ASHIDA Solutions</a></p>
   </footer>
 
   <script>
-    // Global pagination variables
+    // --- pagination & state ---
     let currentPage = 1;
-    const pageSize = 30; // Number of records per page
+    const pageSize = 30;
+    let allRows = [];
 
-    // Fetch available buildings
-    fetch('/buildings')
-      .then(response => response.json())
-      .then(buildings => {
-        const buildingSelect = document.getElementById('building-id');
-        buildings.forEach(building => {
-          const option = document.createElement('option');
-          option.value = building;
-          option.textContent = building;
-          buildingSelect.appendChild(option);
-        });
-        updateFloorsAndData(); // Initial data fetch
-      });
-
-    // Fetch sensor types
-    fetch('/sensor-types')
-      .then(response => response.json())
-      .then(sensorTypes => {
-        const sensorTypeSelect = document.getElementById('sensor-type');
-        sensorTypes.forEach(sensorType => {
-          const option = document.createElement('option');
-          option.value = sensorType;
-          option.textContent = sensorType;
-          sensorTypeSelect.appendChild(option);
-        });
-        updateData(); // Optionally, trigger an initial data update
-      });
-
-    // Fetch floors for selected building
-    function updateFloorsAndData() {
-      const buildingId = document.getElementById('building-id').value;
-      fetch(`/floors/${buildingId}`)
-        .then(response => response.json())
-        .then(floors => {
-          const floorSelect = document.getElementById('floor-id');
-          floorSelect.innerHTML = '';
-          const option = document.createElement('option');
-          option.value = 'all';
-          option.textContent = 'All Floors';
-          floorSelect.appendChild(option);
-          floors.forEach(floor => {
-            const option = document.createElement('option');
-            option.value = floor;
-            option.textContent = floor;
-            floorSelect.appendChild(option);
-          });
-          updateData(); // Trigger data update with new filters
-        });
+    // --- helpers ---
+    function getWeekOfYear(d) {
+      const oneJan = new Date(d.getFullYear(),0,1);
+      return Math.ceil((((d - oneJan)/86400000) + oneJan.getDay()+1)/7);
+    }
+    function roundToNearestMinutes(date, minutes) {
+      const ms = 1000 * 60 * minutes;
+      return new Date(Math.floor(date.getTime()/ms)*ms).toISOString();
+    }
+    function isDigital(name) {
+      name = name.toLowerCase();
+      return name.includes('status') || name.includes('digital');
     }
 
-    // Update data table based on current filters
-    function updateData() {
-      const buildingId = document.getElementById('building-id').value;
-      const floorId = document.getElementById('floor-id').value;
-      const sensorType = document.getElementById('sensor-type').value;
-      const timeline = document.getElementById('timeline').value;
-      const aggregation = document.getElementById('aggregation').value;
-
-      const params = new URLSearchParams({
-        building_id: buildingId,
-        floor_id: floorId,
-        sensor_type: sensorType,
-        timeline: timeline,
-        aggregation: aggregation,
-        limit: pageSize,
-        offset: (currentPage - 1) * pageSize
-      });
-
-      fetch(`/tabular-data?${params.toString()}`)
-        .then(response => response.json())
-        .then(data => {
-          const tbody = document.getElementById('data-table').getElementsByTagName('tbody')[0];
-          tbody.innerHTML = '';
-          data.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td>${row.building_id}</td>
-              <td>${row.floor_number}</td>
-              <td>${row.timestamp}</td>
-              <td>${row.sensor_type}</td>
-              <td>${row.value}</td>
-              <td>
-                <span class="status-${row.status.toLowerCase()}">${row.status}</span>
-              </td>
-            `;
-            tbody.appendChild(tr);
-          });
-
-          // Update pagination buttons
-          updatePagination();
-        });
-    }
-
-    // Update pagination buttons based on current page
-    function updatePagination() {
-      document.getElementById('pageIndicator').textContent = `Page ${currentPage}`;
-      document.getElementById('prevPage').disabled = currentPage === 1;
-      document.getElementById('nextPage').disabled = false; // Disable based on total pages, if available
-    }
-
-    // Pagination: Go to previous page
-    function prevPage() {
-      if (currentPage > 1) {
-        currentPage--;
-        updateData();
+    // --- processing raw data into rows ---
+    function processData(raw, timeline, agg, building, floor, sensor) {
+      // raw/raw => identity
+      if (timeline==='raw' && agg==='raw') {
+        return raw.map(r => ({
+          building: r.building,
+          floor: r.floor,
+          period: r.timestamp,
+          sensor, value: r.value,
+          status: isDigital(sensor) ? (r.value===1?'ON':'OFF') : ''
+        }));
       }
+      // grouping
+      const groups = {};
+      raw.forEach(r => {
+        const dt = new Date(r.timestamp);
+        let key;
+        switch (timeline) {
+          case 'hourly':
+            key = dt.toISOString().slice(0,13)+':00:00'; break;
+          case 'daily':
+            key = dt.toISOString().slice(0,10); break;
+          case 'weekly':
+            key = dt.getFullYear()+'-W'+getWeekOfYear(dt); break;
+          case 'monthly':
+            key = dt.toISOString().slice(0,7); break;
+          case 'yearly':
+            key = dt.getFullYear().toString(); break;
+          default:
+            key = r.timestamp;
+        }
+        groups[key] = groups[key]||[];
+        groups[key].push(r.value);
+      });
+
+      return Object.keys(groups).sort().map(period => {
+        const vals = groups[period];
+        let val;
+        if (agg==='min') val = Math.min(...vals);
+        else if (agg==='max') val = Math.max(...vals);
+        else val = vals.reduce((a,b)=>a+b,0)/vals.length;
+        return {
+          building, floor,
+          period, sensor,
+          value: +val.toFixed(2),
+          status: isDigital(sensor) ? (val===1?'ON':'OFF') : ''
+        };
+      });
     }
 
-    // Pagination: Go to next page
-    function nextPage() {
-      currentPage++;
-      updateData();
+    // --- render a page ---
+    function renderPage() {
+      const tbody = document.querySelector('#data-table tbody');
+      tbody.innerHTML = '';
+      const start = (currentPage-1)*pageSize;
+      const pageRows = allRows.slice(start, start+pageSize);
+      pageRows.forEach(r => {
+        tbody.insertAdjacentHTML('beforeend', `
+          <tr>
+            <td>${r.building}</td>
+            <td>${r.floor}</td>
+            <td>${r.period}</td>
+            <td>${r.sensor}</td>
+            <td>${r.value}</td>
+            <td>${r.status}</td>
+          </tr>
+        `);
+      });
+      document.getElementById('pageIndicator').textContent = `Page ${currentPage}`;
+      document.getElementById('prevPage').disabled = currentPage===1;
+      document.getElementById('nextPage').disabled = start + pageSize >= allRows.length;
     }
 
-    // Reset pagination when filters change
-    function resetPaginationAndUpdate() {
+    // --- fetch & update allRows ---
+    async function updateData() {
+      const b = document.getElementById('building-id').value;
+      const f = document.getElementById('floor-id').value;
+      const sensor = document.getElementById('sensor-type').value;
+      if (!sensor) return;
+      const timeline = document.getElementById('timeline').value;
+      const agg = document.getElementById('aggregation').value;
+
+      const params = new URLSearchParams();
+      if (b) params.append('building', b);
+      if (f) params.append('floor', f);
+      const raw = await fetch(`/data/sensor/${sensor}?${params}`).then(r => r.json());
+      allRows = processData(raw, timeline, agg, b||'all', f||'all', sensor);
       currentPage = 1;
+      renderPage();
+    }
+
+    // --- pagination controls ---
+    document.getElementById('prevPage').onclick = () => {
+      if (currentPage>1) { currentPage--; renderPage(); }
+    };
+    document.getElementById('nextPage').onclick = () => {
+      if ((currentPage*pageSize) < allRows.length) {
+        currentPage++; renderPage();
+      }
+    };
+
+    // --- dynamic dropdown population ---
+    async function loadFilters() {
+      const [buildings, sensors] = await Promise.all([
+        fetch('/buildings').then(r=>r.json()),
+        fetch('/sensors').then(r=>r.json())
+      ]);
+
+      const bs = document.getElementById('building-id');
+      buildings.forEach(v => {
+        bs.insertAdjacentHTML('beforeend',
+          `<option value="${v}">${v}</option>`);
+      });
+      bs.onchange = async () => {
+        await loadFloors(bs.value);
+        updateData();
+      };
+
+      const ss = document.getElementById('sensor-type');
+      sensors.forEach(v => {
+        ss.insertAdjacentHTML('beforeend',
+          `<option value="${v}">${v}</option>`);
+      });
+      ss.onchange = () => updateData();
+
+      document.getElementById('timeline').onchange = () => updateData();
+      document.getElementById('aggregation').onchange = () => updateData();
+
+      // floors depend on building
+      await loadFloors();
       updateData();
     }
+
+    async function loadFloors(building='') {
+      let url = '/floors';
+      if (building) url += `?building=${building}`;
+      const floors = await fetch(url).then(r=>r.json());
+      const fs = document.getElementById('floor-id');
+      fs.disabled = false;
+      fs.innerHTML = `<option value="">All Floors (Average)</option>`;
+      floors.forEach(v => {
+        fs.insertAdjacentHTML('beforeend',
+          `<option value="${v}">${v}</option>`);
+      });
+      fs.onchange = () => updateData();
+    }
+
+    // --- init ---
+    loadFilters();
   </script>
 </body>
 </html>
