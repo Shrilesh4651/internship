@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configure Database Connection</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 20px;
+      background-color: #f7f7f7;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+
+    label {
+      display: block;
+      margin-top: 15px;
+      font-weight: bold;
+      color: #444;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    button {
+      margin-top: 25px;
+      width: 100%;
+      padding: 10px;
+      background-color: #4CAF50;
+      color: white;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    #message {
+      margin-top: 20px;
+      text-align: center;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Configure Database Connection</h1>
+  <form id="db-config-form">
+    <label for="type">Database Type:
+      <select name="type" id="type" required>
+        <option value="">-- Select DB Type --</option>
+        <option value="sqlite">SQLite</option>
+        <option value="mysql">MySQL</option>
+        <option value="postgresql">PostgreSQL</option>
+      </select>
+    </label>
+
+    <label for="host">Host:
+      <input type="text" id="host" name="host" placeholder="localhost" />
+    </label>
+
+    <label for="port">Port:
+      <input type="number" id="port" name="port" placeholder="3306 for MySQL, 5432 for PostgreSQL" />
+    </label>
+
+    <label for="user">User:
+      <input type="text" id="user" name="user" placeholder="Enter username" />
+    </label>
+
+    <label for="password">Password:
+      <input type="password" id="password" name="password" placeholder="Enter password" />
+    </label>
+
+    <label for="database">Database Name:
+      <input type="text" id="database" name="database" placeholder="DB name or file (for SQLite)" required />
+    </label>
+
+    <button type="submit">Connect</button>
+  </form>
+
+  <div id="message"></div>
+
+  <script>
+    document.getElementById('db-config-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const form = e.target;
+      const formData = new FormData(form);
+      const data = {};
+      formData.forEach((value, key) => data[key] = value.trim());
+
+      try {
+        const response = await fetch('/configure-db', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        const msgDiv = document.getElementById('message');
+
+        if (response.ok) {
+          msgDiv.style.color = 'green';
+          msgDiv.textContent = result.message + ' Redirecting...';
+          setTimeout(() => window.location.href = '/', 1500);
+        } else {
+          msgDiv.style.color = 'red';
+          msgDiv.textContent = result.error || 'Failed to connect.';
+        }
+      } catch (err) {
+        const msgDiv = document.getElementById('message');
+        msgDiv.style.color = 'red';
+        msgDiv.textContent = 'Connection failed: ' + err.message;
+      }
+    });
+
+    // Hide/show fields depending on DB type (optional UX improvement)
+    document.getElementById('type').addEventListener('change', function () {
+      const isSqlite = this.value === 'sqlite';
+      ['host', 'port', 'user', 'password'].forEach(id => {
+        const field = document.getElementById(id).closest('label');
+        field.style.display = isSqlite ? 'none' : 'block';
+      });
+    });
+  </script>
+</body>
+</html>

@@ -2,11 +2,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dynamic Sensor Data Dashboard</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet"/>
   <!-- Navigation Links -->
 
   <style>
@@ -68,17 +68,17 @@
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
     /* Increased height for bigger graph */
- .chart-container {
-  height: 600px; /* Reduced height */
-  width: 100%;
-  position: relative;
-  margin-bottom: 40px; /* Add space for x-axis labels */
-}
+    .chart-container {
+      height: 600px; /* Reduced height */
+      width: 100%;
+      position: relative;
+      margin-bottom: 40px; /* Add space for x-axis labels */
+    }
 
-/* Add to existing style */
-.plot-container .xaxislayer-above {
-  transform: translateY(30px); /* Push x-axis labels down */
-}
+    /* Add to existing style */
+    .plot-container .xaxislayer-above {
+      transform: translateY(30px); /* Push x-axis labels down */
+    }
     .hidden {
       display: none !important;
     }
@@ -199,7 +199,7 @@
 
       <div style="margin-top:1em;">
         <a href="/export"><button class="btn-export">Go to Export Page</button></a>
-          <a href="/tabular"><button class="btn btn-secondary">Go to Tabular View</button></a>
+        <a href="/tabular"><button class="btn btn-secondary">Go to Tabular View</button></a>
       </div>
       
     </div>
@@ -246,128 +246,158 @@
           case '10min': key = roundToNearestMinutes(dt,10); break;
           case '15min': key = roundToNearestMinutes(dt,15); break;
           case '30min': key = roundToNearestMinutes(dt,30); break;
-          case 'hourly': key = dt.toISOString().slice(0,13)+':00:00'; break;
-          case 'daily': key = dt.toISOString().slice(0,10); break;
+          case 'hourly': key = dt.toISOString().substring(0,13); break;
+          case 'daily': key = dt.toISOString().substring(0,10); break;
           case 'weekly': key = dt.getFullYear()+'-W'+getWeekOfYear(dt); break;
-          case 'monthly': key = dt.toISOString().slice(0,7); break;
-          case 'yearly': key = dt.getFullYear().toString(); break;
-          default: key = d.timestamp;
+          case 'monthly': key = dt.toISOString().substring(0,7); break;
+          case 'yearly': key = dt.getFullYear(); break;
+          default: key = d.timestamp; break;
         }
-        groups[key] = groups[key]||[];
+        groups[key] = groups[key] || [];
         groups[key].push(d.value);
       });
+      // Aggregate function
       const timestamps = [], values = [];
-      Object.entries(groups).sort().forEach(([period, arr])=>{
-        timestamps.push(period);
-        if (agg==='min') values.push(Math.min(...arr));
-        else if (agg==='max') values.push(Math.max(...arr));
-        else values.push(arr.reduce((a,b)=>a+b,0)/arr.length);
-      });
-      return { timestamps, values };
+      for (const key in groups) {
+        timestamps.push(key);
+        const vals = groups[key];
+        let aggVal;
+        switch(agg) {
+          case 'min': aggVal = Math.min(...vals); break;
+          case 'max': aggVal = Math.max(...vals); break;
+          case 'avg': aggVal = vals.reduce((a,b)=>a+b,0)/vals.length; break;
+          case 'raw':
+          default: aggVal = vals[0]; break;
+        }
+        values.push(aggVal);
+      }
+      return {timestamps, values};
     }
 
-    // Detect digital sensor by name
-    function isDigitalSensor(name) {
-      return name.toLowerCase().includes('status') || name.toLowerCase().includes('digital');
-    }
+    // Load buildings and sensors on page load
+    async function loadFilters() {
+      try {
+        const [buildings, sensors] = await Promise.all([
+          fetch('/buildings').then(r => r.json()),
+          fetch('/sensors').then(r => r.json())
+        ]);
+        const buildingSelect = document.getElementById('building-id');
+        buildings.forEach(b => {
+          buildingSelect.insertAdjacentHTML('beforeend', `<option value="${b}">${b}</option>`);
+        });
 
-    // Draw Plotly chart
-    function renderChart(ts, vals, sensor, chartType) {
-      const trace = {
-        x: ts, y: vals,
-        type: chartType==='bar'?'bar':'scatter',
-        mode: chartType==='line'?'lines+markers':undefined,
-        name: sensor
-      };
-      const layout = {
-        title: sensor + ' over Time',
-        xaxis: { title: 'Timestamp' },
-        yaxis: { title: sensor }
-      };
-      Plotly.newPlot('chart',[trace],layout,{responsive:true});
-      document.getElementById('chart').classList.remove('hidden');
-      document.getElementById('fan-cards').classList.add('hidden');
-    }
-
-    // Render fan cards for digital sensors
-    function renderFanCards(data) {
-      const container = document.getElementById('fan-cards');
-      container.innerHTML = '';
-      data.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'fan-card';
-        // assume item has keys like fan_status, rotor_status, pipe_status, building, floor
-        const onOff = v=> v===1?'ON':'OFF';
-        card.innerHTML = `
-          <h3>Building ${item.building} | Floor ${item.floor}</h3>
-          <p>Fan: ${onOff(item.fan_status)}</p>
-          <p>Rotor: ${onOff(item.rotor_status)}</p>
-          <p>Pipe: ${onOff(item.pipe_status)}</p>
-        `;
-        container.appendChild(card);
-      });
-      container.classList.remove('hidden');
-      document.getElementById('chart').classList.add('hidden');
-    }
-
-    // Main data fetch + render
-    async function updateData() {
-      const b = document.getElementById('building-id').value;
-      const f = document.getElementById('floor-id').value;
-      const sensor = document.getElementById('sensor-type').value;
-      const timeline = document.getElementById('timeline').value;
-      const agg = document.getElementById('aggregation').value;
-      const chartType = document.getElementById('chart-type').value;
-      if (!sensor) return;
-      const params = new URLSearchParams();
-      if (b && b!=='all') params.append('building', b);
-      if (f && f!=='all') params.append('floor', f);
-      const url = `/data/sensor/${sensor}?${params.toString()}`;
-      const data = await fetch(url).then(r=>r.json());
-
-      if (isDigitalSensor(sensor)) {
-        renderFanCards(data);
-      } else {
-        const { timestamps, values } = groupAndAggregate(data, timeline, agg);
-        renderChart(timestamps, values, sensor, chartType);
+        const sensorSelect = document.getElementById('sensor-type');
+        sensors.forEach(sensor => {
+          sensorSelect.insertAdjacentHTML('beforeend', `<option value="${sensor}">${sensor}</option>`);
+        });
+      } catch (error) {
+        console.error('Error loading filters:', error);
       }
     }
 
-    // Populate dropdowns
-    async function loadFilters() {
-      const [buildings, sensors] = await Promise.all([
-        fetch('/buildings').then(r=>r.json()),
-        fetch('/sensors').then(r=>r.json())
-      ]);
-      const bs = document.getElementById('building-id');
-      buildings.forEach(v=>{
-        bs.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`);
-      });
-      const ss = document.getElementById('sensor-type');
-      sensors.forEach(v=>{
-        ss.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`);
-      });
-      await loadFloors();  // initial floors
+    // Populate floors dropdown based on selected building
+    async function onBuildingChange() {
+      const building = document.getElementById('building-id').value;
+      const floorSelect = document.getElementById('floor-id');
+      
+      // Reset floor options
+      floorSelect.innerHTML = '<option value="">All Floors (Average)</option>';
+
+      if (!building) {
+        updateData();
+        return;
+      }
+
+      try {
+        const floors = await fetch(`/floors?building=${encodeURIComponent(building)}`).then(r => r.json());
+        floors.forEach(floor => {
+          floorSelect.insertAdjacentHTML('beforeend', `<option value="${floor}">${floor}</option>`);
+        });
+      } catch (error) {
+        console.error('Error loading floors:', error);
+      }
       updateData();
     }
 
-    async function loadFloors() {
-      const floors = await fetch('/floors').then(r=>r.json());
-      const fs = document.getElementById('floor-id');
-      fs.innerHTML = `<option value="all">All Floors (Average)</option>`;
-      floors.forEach(v=>{
-        fs.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`);
+    // Update chart based on filters
+    async function updateData() {
+      const building = document.getElementById('building-id').value;
+      const floor = document.getElementById('floor-id').value;
+      const sensor = document.getElementById('sensor-type').value;
+      const timeline = document.getElementById('timeline').value;
+      const aggregation = document.getElementById('aggregation').value;
+      const chartType = document.getElementById('chart-type').value;
+
+      if (!sensor) {
+        document.getElementById('chart').innerHTML = '<p>Please select a sensor to display data.</p>';
+        document.getElementById('fan-cards').classList.add('hidden');
+        return;
+      }
+
+      // Fetch sensor data
+      const url = `/data/sensor/${encodeURIComponent(sensor)}?building=${encodeURIComponent(building)}&floor=${encodeURIComponent(floor)}&timeline=${timeline}&aggregation=${aggregation}`;
+      try {
+        const data = await fetch(url).then(r => r.json());
+        // Check if digital (list of status) or analog (timestamp,value)
+        if (data.length && typeof data[0] === 'object' && data[0].status !== undefined) {
+          // Digital sensor (like fan status)
+          showFanCards(data);
+          document.getElementById('chart').innerHTML = '';
+          return;
+        }
+        // Analog sensor data
+        document.getElementById('fan-cards').classList.add('hidden');
+
+        const grouped = groupAndAggregate(data, timeline, aggregation);
+
+        const trace = {
+          x: grouped.timestamps,
+          y: grouped.values,
+          type: chartType,
+          mode: 'lines+markers',
+          marker: {color: 'lightgreen'},
+          line: {shape: 'spline'}
+        };
+        const layout = {
+          plot_bgcolor: '#29293d',
+          paper_bgcolor: '#29293d',
+          font: {color: 'white'},
+          xaxis: {title: 'Time', tickangle: -45},
+          yaxis: {title: sensor},
+          margin: {t: 30, b: 100}
+        };
+        Plotly.newPlot('chart', [trace], layout, {responsive:true});
+      } catch (error) {
+        console.error('Error fetching sensor data:', error);
+        document.getElementById('chart').innerHTML = '<p>Error loading data.</p>';
+        document.getElementById('fan-cards').classList.add('hidden');
+      }
+    }
+
+    // Show fan cards for digital sensors
+    function showFanCards(data) {
+      const container = document.getElementById('fan-cards');
+      container.classList.remove('hidden');
+      container.innerHTML = '';
+      data.forEach(fan => {
+        const card = document.createElement('div');
+        card.className = 'fan-card';
+        card.innerHTML = `
+          <h3>${fan.name || 'Fan'}</h3>
+          <div class="fan-status ${fan.status ? 'status-on' : 'status-off'}">Fan Status: ${fan.status ? 'ON' : 'OFF'}</div>
+          <div class="rotor-status ${fan.rotor ? 'status-on' : 'status-off'}">Rotor Status: ${fan.rotor ? 'ON' : 'OFF'}</div>
+          <div class="pipe-status ${fan.pipe ? 'status-on' : 'status-off'}">Pipe Status: ${fan.pipe ? 'ON' : 'OFF'}</div>
+        `;
+        container.appendChild(card);
       });
     }
 
-    function onBuildingChange(){
-      // you could fetch `/floors?building=...` if backend supported that
-      loadFloors().then(updateData);
-    }
-
-    // Kickoff + auto‑refresh
-    loadFilters();
-    setInterval(updateData, 10000);
+    // On page load, populate buildings and sensors, then load data
+    window.onload = () => {
+      loadFilters().then(() => {
+        updateData();
+      });
+    };
   </script>
 </body>
 </html>
