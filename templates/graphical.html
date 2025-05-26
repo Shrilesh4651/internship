@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Graphical View</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
     <style>
         .chart-container {
             width: 80%;
@@ -16,27 +16,32 @@
 <body>
     <div class="container">
         <h1 class="text-center">Sensor Data Graphical View</h1>
+
         <div class="form-group">
             <label for="buildingSelect">Select Building:</label>
             <select class="form-control" id="buildingSelect">
                 <option value="all">All</option>
             </select>
         </div>
+
         <div class="form-group">
             <label for="floorSelect">Select Floor:</label>
             <select class="form-control" id="floorSelect">
                 <option value="all">All</option>
             </select>
         </div>
+
         <div class="form-group">
             <label for="sensorTypeSelect">Select Sensor Type:</label>
             <select class="form-control" id="sensorTypeSelect">
+                <!-- Will be dynamically filled -->
                 <option value="temperature">Temperature</option>
                 <option value="humidity">Humidity</option>
                 <option value="pressure">Pressure</option>
                 <option value="digital">Digital</option>
             </select>
         </div>
+
         <div class="form-group">
             <label for="timelineSelect">Select Timeline:</label>
             <select class="form-control" id="timelineSelect">
@@ -47,6 +52,7 @@
                 <option value="yearly">Yearly</option>
             </select>
         </div>
+
         <div class="form-group">
             <label for="aggregationSelect">Select Aggregation:</label>
             <select class="form-control" id="aggregationSelect">
@@ -55,7 +61,9 @@
                 <option value="max">Maximum</option>
             </select>
         </div>
-        <button class="btn btn-primary" onclick="fetchDataAndRenderChart()">Generate Graph</button>
+
+        <button id="generateBtn" class="btn btn-primary" onclick="fetchDataAndRenderChart()">Generate Graph</button>
+
         <div class="chart-container">
             <canvas id="sensorChart"></canvas>
         </div>
@@ -66,14 +74,24 @@
     <script>
         let sensorChart;
 
-        $(document).ready(function() {
+        // Map your timeline select to Chart.js time units
+        const timeUnitMap = {
+            hourly: 'hour',
+            daily: 'day',
+            weekly: 'week',
+            monthly: 'month',
+            yearly: 'year'
+        };
+
+        $(document).ready(function () {
             fetchBuildings();
-            fetchSensorTypes();
+            // Uncomment this if you want sensor types loaded from server
+            // fetchSensorTypes();
         });
 
         function fetchBuildings() {
-            $.get('/buildings', function(data) {
-                console.log("Buildings data:", data); // Debugging
+            $.get('/buildings', function (data) {
+                console.log("Buildings data:", data);
                 if (data && data.length > 0) {
                     let options = '<option value="all">All</option>';
                     data.forEach(building => {
@@ -83,15 +101,20 @@
                 } else {
                     console.error("No buildings found or invalid response:", data);
                 }
-            }).fail(function(jqXHR, textStatus, errorThrown) {
+            }).fail(function (jqXHR, textStatus, errorThrown) {
                 console.error("Failed to fetch buildings:", textStatus, errorThrown);
             });
         }
 
         function fetchFloors() {
             const buildingId = $('#buildingSelect').val();
-            $.get(`/floors/${buildingId}`, function(data) {
-                console.log("Floors data:", data); // Debugging
+            if (!buildingId || buildingId === 'all') {
+                // Reset floor select if 'all' selected
+                $('#floorSelect').html('<option value="all">All</option>');
+                return;
+            }
+            $.get(`/floors/${buildingId}`, function (data) {
+                console.log("Floors data:", data);
                 if (data && data.length > 0) {
                     let options = '<option value="all">All</option>';
                     data.forEach(floor => {
@@ -100,15 +123,18 @@
                     $('#floorSelect').html(options);
                 } else {
                     console.error("No floors found or invalid response:", data);
+                    $('#floorSelect').html('<option value="all">All</option>');
                 }
-            }).fail(function(jqXHR, textStatus, errorThrown) {
+            }).fail(function (jqXHR, textStatus, errorThrown) {
                 console.error("Failed to fetch floors:", textStatus, errorThrown);
+                $('#floorSelect').html('<option value="all">All</option>');
             });
         }
 
+        // Optional: fetch sensor types dynamically
         function fetchSensorTypes() {
-            $.get('/sensor-types', function(data) {
-                console.log("Sensor types data:", data); // Debugging
+            $.get('/sensor-types', function (data) {
+                console.log("Sensor types data:", data);
                 if (data && data.length > 0) {
                     let options = '';
                     data.forEach(type => {
@@ -118,7 +144,7 @@
                 } else {
                     console.error("No sensor types found or invalid response:", data);
                 }
-            }).fail(function(jqXHR, textStatus, errorThrown) {
+            }).fail(function (jqXHR, textStatus, errorThrown) {
                 console.error("Failed to fetch sensor types:", textStatus, errorThrown);
             });
         }
@@ -130,27 +156,34 @@
             const timeline = $('#timelineSelect').val();
             const aggregation = $('#aggregationSelect').val();
 
-            $.get(`/data/${buildingId}/${floor}/${sensorType}/${timeline}/${aggregation}`, function(data) {
-                console.log("Sensor data:", data); // Debugging
+            $('#generateBtn').prop('disabled', true);
+
+            const url = `/data/${buildingId}/${floor}/${sensorType}/${timeline}/${aggregation}`;
+
+            $.get(url, function (data) {
+                console.log("Sensor data:", data);
                 if (data && data.length > 0) {
                     const labels = data.map(d => d.timestamp);
                     const values = data.map(d => d.value);
+                    const unit = data[0]?.unit || '';
 
                     if (sensorChart) {
                         sensorChart.destroy();
                     }
 
                     const ctx = document.getElementById('sensorChart').getContext('2d');
+
                     sensorChart = new Chart(ctx, {
                         type: 'line',
                         data: {
                             labels: labels,
                             datasets: [{
-                                label: `${sensorType} (${data[0]?.unit || ''})`,
+                                label: `${sensorType.charAt(0).toUpperCase() + sensorType.slice(1)} (${unit})`,
                                 data: values,
                                 borderColor: 'rgba(75, 192, 192, 1)',
                                 borderWidth: 1,
-                                fill: false
+                                fill: false,
+                                tension: 0.1
                             }]
                         },
                         options: {
@@ -158,25 +191,42 @@
                                 x: {
                                     type: 'time',
                                     time: {
-                                        unit: timeline
+                                        unit: timeUnitMap[timeline] || 'day'
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: 'Time'
                                     }
                                 },
                                 y: {
-                                    beginAtZero: true
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: `Value (${unit})`
+                                    }
                                 }
-                            }
+                            },
+                            responsive: true,
+                            maintainAspectRatio: false
                         }
                     });
                 } else {
                     console.error("No data found or invalid response:", data);
+                    alert("No data found for the selected parameters.");
                 }
-            }).fail(function(jqXHR, textStatus, errorThrown) {
+            }).fail(function (jqXHR, textStatus, errorThrown) {
                 console.error("Failed to fetch sensor data:", textStatus, errorThrown);
+                alert("Failed to fetch sensor data. Please try again.");
+            }).always(function () {
+                $('#generateBtn').prop('disabled', false);
             });
         }
 
-        // Attach event listeners
-        $('#buildingSelect').change(fetchFloors);
+        // Reset floors when building changes
+        $('#buildingSelect').change(function () {
+            $('#floorSelect').html('<option value="all">All</option>');
+            fetchFloors();
+        });
     </script>
 </body>
 </html>

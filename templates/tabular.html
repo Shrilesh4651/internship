@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Tabular Sensor Data View</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet" />
   <style>
-    /* Basic styles */
+    /* Your existing styles here ... */
     body {
       margin: 0;
       font-family: 'Roboto', sans-serif;
@@ -65,10 +65,13 @@
       border-collapse: collapse;
       margin-top: 20px;
     }
-    table, th, td {
+    table,
+    th,
+    td {
       border: 1px solid #444;
     }
-    th, td {
+    th,
+    td {
       padding: 12px;
       text-align: center;
     }
@@ -123,6 +126,21 @@
     footer a:hover {
       text-decoration: underline;
     }
+    /* New button style for back to graph */
+    .back-graph-btn {
+      display: inline-block;
+      margin-bottom: 20px;
+      padding: 10px 20px;
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .back-graph-btn:hover {
+      background-color: #45a045;
+    }
   </style>
 </head>
 <body>
@@ -131,6 +149,9 @@
   </header>
 
   <div class="container">
+    <!-- Back to Graph button -->
+    <button class="back-graph-btn" id="backToGraphBtn">← Back to Graphical View</button>
+
     <!-- Sidebar for Filters -->
     <div class="sidebar">
       <label for="building-id">Select Building:</label>
@@ -197,81 +218,79 @@
   </footer>
 
   <script>
-    // --- pagination & state ---
     let currentPage = 1;
     const pageSize = 30;
     let allRows = [];
 
-    // --- helpers ---
     function getWeekOfYear(d) {
-      const oneJan = new Date(d.getFullYear(),0,1);
-      return Math.ceil((((d - oneJan)/86400000) + oneJan.getDay()+1)/7);
-    }
-    function roundToNearestMinutes(date, minutes) {
-      const ms = 1000 * 60 * minutes;
-      return new Date(Math.floor(date.getTime()/ms)*ms).toISOString();
+      const oneJan = new Date(d.getFullYear(), 0, 1);
+      return Math.ceil((((d - oneJan) / 86400000) + oneJan.getDay() + 1) / 7);
     }
     function isDigital(name) {
       name = name.toLowerCase();
       return name.includes('status') || name.includes('digital');
     }
 
-    // --- processing raw data into rows ---
     function processData(raw, timeline, agg, building, floor, sensor) {
-      // raw/raw => identity
-      if (timeline==='raw' && agg==='raw') {
+      if (timeline === 'raw' && agg === 'raw') {
         return raw.map(r => ({
           building: r.building,
           floor: r.floor,
           period: r.timestamp,
-          sensor, value: r.value,
-          status: isDigital(sensor) ? (r.value===1?'ON':'OFF') : ''
+          sensor,
+          value: r.value,
+          status: isDigital(sensor) ? (r.value === 1 ? 'ON' : 'OFF') : ''
         }));
       }
-      // grouping
       const groups = {};
       raw.forEach(r => {
         const dt = new Date(r.timestamp);
         let key;
         switch (timeline) {
           case 'hourly':
-            key = dt.toISOString().slice(0,13)+':00:00'; break;
+            key = dt.toISOString().slice(0, 13) + ':00:00';
+            break;
           case 'daily':
-            key = dt.toISOString().slice(0,10); break;
+            key = dt.toISOString().slice(0, 10);
+            break;
           case 'weekly':
-            key = dt.getFullYear()+'-W'+getWeekOfYear(dt); break;
+            key = dt.getFullYear() + '-W' + getWeekOfYear(dt);
+            break;
           case 'monthly':
-            key = dt.toISOString().slice(0,7); break;
+            key = dt.toISOString().slice(0, 7);
+            break;
           case 'yearly':
-            key = dt.getFullYear().toString(); break;
+            key = dt.getFullYear().toString();
+            break;
           default:
             key = r.timestamp;
         }
-        groups[key] = groups[key]||[];
+        groups[key] = groups[key] || [];
         groups[key].push(r.value);
       });
 
       return Object.keys(groups).sort().map(period => {
         const vals = groups[period];
         let val;
-        if (agg==='min') val = Math.min(...vals);
-        else if (agg==='max') val = Math.max(...vals);
-        else val = vals.reduce((a,b)=>a+b,0)/vals.length;
+        if (agg === 'min') val = Math.min(...vals);
+        else if (agg === 'max') val = Math.max(...vals);
+        else val = vals.reduce((a, b) => a + b, 0) / vals.length;
         return {
-          building, floor,
-          period, sensor,
+          building,
+          floor,
+          period,
+          sensor,
           value: +val.toFixed(2),
-          status: isDigital(sensor) ? (val===1?'ON':'OFF') : ''
+          status: isDigital(sensor) ? (val === 1 ? 'ON' : 'OFF') : ''
         };
       });
     }
 
-    // --- render a page ---
     function renderPage() {
       const tbody = document.querySelector('#data-table tbody');
       tbody.innerHTML = '';
-      const start = (currentPage-1)*pageSize;
-      const pageRows = allRows.slice(start, start+pageSize);
+      const start = (currentPage - 1) * pageSize;
+      const pageRows = allRows.slice(start, start + pageSize);
       pageRows.forEach(r => {
         tbody.insertAdjacentHTML('beforeend', `
           <tr>
@@ -285,11 +304,10 @@
         `);
       });
       document.getElementById('pageIndicator').textContent = `Page ${currentPage}`;
-      document.getElementById('prevPage').disabled = currentPage===1;
+      document.getElementById('prevPage').disabled = currentPage === 1;
       document.getElementById('nextPage').disabled = start + pageSize >= allRows.length;
     }
 
-    // --- fetch & update allRows ---
     async function updateData() {
       const b = document.getElementById('building-id').value;
       const f = document.getElementById('floor-id').value;
@@ -302,32 +320,33 @@
       if (b) params.append('building', b);
       if (f) params.append('floor', f);
       const raw = await fetch(`/data/sensor/${sensor}?${params}`).then(r => r.json());
-      allRows = processData(raw, timeline, agg, b||'all', f||'all', sensor);
+      allRows = processData(raw, timeline, agg, b || 'all', f || 'all', sensor);
       currentPage = 1;
       renderPage();
     }
 
-    // --- pagination controls ---
     document.getElementById('prevPage').onclick = () => {
-      if (currentPage>1) { currentPage--; renderPage(); }
+      if (currentPage > 1) {
+        currentPage--;
+        renderPage();
+      }
     };
     document.getElementById('nextPage').onclick = () => {
-      if ((currentPage*pageSize) < allRows.length) {
-        currentPage++; renderPage();
+      if ((currentPage * pageSize) < allRows.length) {
+        currentPage++;
+        renderPage();
       }
     };
 
-    // --- dynamic dropdown population ---
     async function loadFilters() {
       const [buildings, sensors] = await Promise.all([
-        fetch('/buildings').then(r=>r.json()),
-        fetch('/sensors').then(r=>r.json())
+        fetch('/buildings').then(r => r.json()),
+        fetch('/sensors').then(r => r.json())
       ]);
 
       const bs = document.getElementById('building-id');
       buildings.forEach(v => {
-        bs.insertAdjacentHTML('beforeend',
-          `<option value="${v}">${v}</option>`);
+        bs.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`);
       });
       bs.onchange = async () => {
         await loadFloors(bs.value);
@@ -336,34 +355,36 @@
 
       const ss = document.getElementById('sensor-type');
       sensors.forEach(v => {
-        ss.insertAdjacentHTML('beforeend',
-          `<option value="${v}">${v}</option>`);
+        ss.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`);
       });
       ss.onchange = () => updateData();
 
       document.getElementById('timeline').onchange = () => updateData();
       document.getElementById('aggregation').onchange = () => updateData();
 
-      // floors depend on building
       await loadFloors();
       updateData();
     }
 
-    async function loadFloors(building='') {
+    async function loadFloors(building = '') {
       let url = '/floors';
       if (building) url += `?building=${building}`;
-      const floors = await fetch(url).then(r=>r.json());
+      const floors = await fetch(url).then(r => r.json());
       const fs = document.getElementById('floor-id');
       fs.disabled = false;
       fs.innerHTML = `<option value="">All Floors (Average)</option>`;
       floors.forEach(v => {
-        fs.insertAdjacentHTML('beforeend',
-          `<option value="${v}">${v}</option>`);
+        fs.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`);
       });
       fs.onchange = () => updateData();
     }
 
-    // --- init ---
+    // Back to Graphical View button handler
+    document.getElementById('backToGraphBtn').onclick = () => {
+      // Replace with your actual graphical view URL or file path
+      window.location.href = '/graph.html'; 
+    };
+
     loadFilters();
   </script>
 </body>

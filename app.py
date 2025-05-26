@@ -28,13 +28,18 @@ def db_required(f):
 def get_db_engine():
     db_url = session.get('db_url')
     if not db_url:
-        db_url = 'sqlite:///simulation_data.db'  # Default fallback
-        session['db_url'] = db_url
-    return create_engine(db_url)
+        raise RuntimeError("Database URL not configured in session.")
+    engine = create_engine(db_url)
+    # Defensive check for table existence
+    inspector = inspect(engine)
+    if 'simulation_data' not in inspector.get_table_names():
+        raise RuntimeError("Table 'simulation_data' does not exist in the database.")
+    return engine
 
 # ----------- DB Configuration Page (GET) -----------
 @app.route('/configure-db', methods=['GET'])
 def configure_db_form():
+    # Render your configure_db.html where user inputs DB info (type, host, etc.)
     return render_template('configure_db.html')
 
 # ----------- DB Configuration Submit (POST) -----------
@@ -48,8 +53,12 @@ def configure_db():
     password = data.get('password')
     db_name = data.get('database')
 
+    # Compose DB URL based on type
     if db_type == 'sqlite':
-        db_url = f"sqlite:///{db_name}.db"
+        db_file_path = f"{db_name}.db"
+        if not os.path.exists(db_file_path):
+            return jsonify({'error': f"SQLite DB file '{db_file_path}' does not exist."}), 400
+        db_url = f"sqlite:///{os.path.abspath(db_file_path)}"  # Use absolute path
     elif db_type == 'mysql':
         db_url = f"mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}"
     elif db_type == 'postgresql':
@@ -60,14 +69,21 @@ def configure_db():
     try:
         engine = create_engine(db_url)
         with engine.connect() as conn:
+            # Test connection
             conn.execute(text("SELECT 1"))
+            # Check for required table
+            inspector = inspect(engine)
+            if 'simulation_data' not in inspector.get_table_names():
+                return jsonify({'error': "Table 'simulation_data' does not exist in the database."}), 400
+
         session['db_url'] = db_url
+        logger.info(f"Connected to database: {db_url}")
         return jsonify({'message': 'Database connected successfully', 'redirect': url_for('home')})
     except SQLAlchemyError as e:
         logger.error(f"DB connection error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-# ----------- Pages (Only accessible if DB is configured) -----------
+# ----------- Pages (require DB config) -----------
 @app.route('/')
 @db_required
 def home():
@@ -150,7 +166,8 @@ def data_by_sensor(sensor_name):
 
         with engine.connect() as conn:
             result = conn.execute(text(query), params)
-            data = [{'timestamp': row['timestamp'], 'value': row['value']} for row in result]
+            # FIXED: Use row._mapping to access by column names
+            data = [{'timestamp': row._mapping['timestamp'], 'value': row._mapping['value']} for row in result]
 
         return jsonify(data)
 
