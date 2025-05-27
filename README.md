@@ -83,39 +83,18 @@ HVAC-Dashboard/
 * Plotly
 * SQLite
 
-### Steps:
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/username/HVAC-Dashboard.git
-   cd HVAC-Dashboard
-   ```
-
-2. **Create a virtual environment:**
-
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-3. **Install dependencies:**
+1. **Install dependencies:**
 
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Set environment variables:**
 
-   ```bash
-   export FLASK_APP=run.py
-   export FLASK_ENV=development
-   ```
-
-5. **Run the application:**
+2. **Run the application:**
 
    ```bash
    flask run
+   python app.py in terminal
    ```
 
    The dashboard will be available at: **[http://127.0.0.1:5000/](http://127.0.0.1:5000/)**
