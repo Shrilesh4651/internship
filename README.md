@@ -43,10 +43,10 @@ project-root/
 │       └── application.py        # Data generator script for simulation
 │
 ├── templates/                    # HTML templates used in the application
-│   ├── configure_db.html         # DB configuration page (Updated by Shreedhar - 5 days ago)
-│   ├── export.html               # Export data UI (Updated 2 weeks ago)
-│   ├── graphical.html            # Graph UI (DB integration changes - 19 hours ago)
-│   ├── index.html                # Main dashboard (Updated by Shreedhar - 5 days ago)
+│   ├── configure_db.html         # DB configuration page 
+│   ├── export.html               # Export data UI 
+│   ├── graphical.html            # Graph UI 
+│   ├── index.html                # Main dashboard 
 │   └── tabular.html              # Table UI for data (Fixed rendering issue)
 │
 ├── venv/                         # Python virtual environment
