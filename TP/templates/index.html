@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Code Editor - Multi Language</title>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.41.0/min/vs/loader.js"></script>
+
+  <style>
+    body {
+      background: #1e1e1e;
+      color: #ddd;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    #controls {
+      padding: 10px;
+      background: #252526;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    select, button {
+      padding: 6px 10px;
+      font-size: 1rem;
+      background: #333;
+      color: #ddd;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    select:focus, button:focus {
+      outline: 2px solid #007acc;
+    }
+    #output-frame {
+      flex-grow: 1;
+      border-top: 2px solid #007acc;
+      background: white;
+    }
+    .container {
+      display: flex;
+      height: 80vh;
+    }
+    #editor-container, #output-frame {
+      flex: 1;
+    }
+    #user-input {
+      flex-grow: 1;
+      background: #333;
+      color: #ddd;
+      border: none;
+      border-radius: 4px;
+      padding: 6px;
+      font-family: monospace;
+      resize: vertical;
+      min-height: 2.5em;
+      max-height: 5em;
+    }
+    label[for="user-input"] {
+      margin-left: 10px;
+      color: #ddd;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="controls">
+  <label for="language">Language:</label>
+  <select id="language">
+    <option value="html">HTML</option>
+    <option value="css">CSS</option>
+    <option value="javascript">JavaScript</option>
+    <option value="python">Python</option>
+  </select>
+  <button id="run-btn">Run</button>
+  <button id="theme-btn">Toggle Theme</button>
+  <button id="download-btn">Download</button>
+  <button id="copy-btn">Copy</button>
+  <button id="clear-btn">Clear</button>
+
+  <label for="user-input">Input:</label>
+  <textarea id="user-input" placeholder="Enter input for your code here" rows="2"></textarea>
+
+ <label for="fileInput" style="margin-left: 20px;">Load File:</label>
+  <input type="file" id="fileInput" accept=".html,.css,.js,.py" />
+
+</div>
+
+<div class="container">
+  <div id="editor-container"></div>
+  <iframe id="output-frame"></iframe>
+</div>
+
+<script>
+  let currentTheme = 'vs-dark';
+
+  // Object to store code per language
+  const codeStore = {
+    html: "<!-- Write your HTML code here -->",
+    css: "/* Write your CSS code here */",
+    javascript: "// Write your JavaScript code here",
+    python: "# Write your Python code here\nprint('Hello from Python')"
+  };
+
+  require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.41.0/min/vs' } });
+  require(['vs/editor/editor.main'], function () {
+    window.editor = monaco.editor.create(document.getElementById('editor-container'), {
+      value: codeStore.html,
+      language: 'html',
+      theme: currentTheme,
+      automaticLayout: true,
+      fontSize: 16,
+      quickSuggestions: true,
+      suggestOnTriggerCharacters: true,
+      snippetSuggestions: 'inline',
+    });
+
+    // ... (Your existing snippet registration code here, no change)
+
+    const languageSelect = document.getElementById('language');
+
+    languageSelect.addEventListener('change', function () {
+      // Save current code before switching
+      const oldLang = editor.getModel().getLanguageId();
+      codeStore[oldLang] = editor.getValue();
+
+      const newLang = this.value;
+      monaco.editor.setModelLanguage(editor.getModel(), newLang);
+
+      // Load saved code or default
+      if (codeStore[newLang]) {
+        editor.setValue(codeStore[newLang]);
+      } else {
+        // fallback default texts
+        if (newLang === 'html') editor.setValue("<!-- Write your HTML code here -->");
+        else if (newLang === 'css') editor.setValue("/* Write your CSS code here */");
+        else if (newLang === 'javascript') editor.setValue("// Write your JavaScript code here");
+        else if (newLang === 'python') editor.setValue("# Write your Python code here\nprint('Hello from Python')");
+        else editor.setValue('');
+      }
+    });
+
+    document.getElementById('theme-btn').addEventListener('click', () => {
+      currentTheme = currentTheme === 'vs-dark' ? 'vs' : 'vs-dark';
+      monaco.editor.setTheme(currentTheme);
+    });
+
+    document.getElementById('download-btn').addEventListener('click', () => {
+      const code = editor.getValue();
+      const language = document.getElementById('language').value;
+      const extMap = { html: 'html', css: 'css', javascript: 'js', python: 'py' };
+      const ext = extMap[language] || 'txt';
+      const blob = new Blob([code], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `code.${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('copy-btn').addEventListener('click', () => {
+      navigator.clipboard.writeText(editor.getValue()).then(() => {
+        alert('Code copied to clipboard');
+      });
+    });
+
+    document.getElementById('clear-btn').addEventListener('click', () => {
+      editor.setValue('');
+      document.getElementById('user-input').value = '';
+      document.getElementById('output-frame').srcdoc = '';
+    });
+
+    document.getElementById('run-btn').addEventListener('click', function () {
+      // Save current code before running
+      const lang = languageSelect.value;
+      codeStore[lang] = editor.getValue();
+
+      // For html/css/js combine and show output directly
+      if (lang === 'html' || lang === 'css' || lang === 'javascript') {
+        const htmlContent = codeStore.html || '';
+        const cssContent = codeStore.css || '';
+        const jsContent = codeStore.javascript || '';
+
+        // Combine all into one HTML page
+        const combinedOutput = `
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <style>${cssContent}</style>
+          </head>
+          <body>
+            ${htmlContent}
+            <script>${jsContent}<\/script>
+          </body>
+          </html>
+        `;
+
+        // Display combined output in iframe
+        document.getElementById('output-frame').srcdoc = combinedOutput;
+      } else {
+        // For other languages like Python, send to backend as before
+        const userInput = document.getElementById('user-input').value;
+
+        fetch('/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: editor.getValue(), language: lang, input: userInput }),
+        })
+          .then(res => res.json())
+          .then(data => {
+            document.getElementById('output-frame').srcdoc = data.output;
+          })
+          .catch(err => {
+            document.getElementById('output-frame').srcdoc = `<pre style="color:red;">Error: ${err}</pre>`;
+          });
+      }
+    });
+
+    const languageMap = {
+      'html': 'html',
+      'css': 'css',
+      'js': 'javascript',
+      'py': 'python'
+    };
+
+    document.getElementById('fileInput').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+
+      reader.onload = function (event) {
+        const code = event.target.result;
+        const extension = file.name.split('.').pop().toLowerCase();
+        const detectedLang = languageMap[extension] || 'plaintext';
+
+        // Save current code before switching
+        const oldLang = editor.getModel().getLanguageId();
+        codeStore[oldLang] = editor.getValue();
+
+        // Update language dropdown and Monaco editor mode
+        languageSelect.value = detectedLang;
+        monaco.editor.setModelLanguage(editor.getModel(), detectedLang);
+
+        // Save and load code
+        codeStore[detectedLang] = code;
+        editor.setValue(code);
+      };
+
+      reader.readAsText(file);
+    });
+  });
+</script>
+
+
+</body>
+</html>
